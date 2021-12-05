@@ -1,18 +1,11 @@
 #!/bin/bash
 
-ROOT_PATH=""
-NFI_PATH="${ROOT_PATH}/NostalgiaForInfinity/NostalgiaForInfinityNext.py"
-FT_PATH="${ROOT_PATH}/freqtrade/user_data/strategies/NostalgiaForInfinityNext.py"
-TG_TOKEN=""
-TG_CHAT_ID=""
-GIT_URL="https://github.com/iterativv/NostalgiaForInfinity"
+source config.conf
 
 # Go to NFI directory
-cd $(dirname ${NFI_PATH})
-
+cd $NFI_PATH
 # Fetch latest tags
 git fetch --tags
-
 # Get tags names
 latest_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
 current_tag=$(git describe --tags)
@@ -22,7 +15,7 @@ if [ "$latest_tag" != "$current_tag" ]; then
 
         # Checkout to latest tag and update the NFI in Freqtrade folder
         git checkout tags/$latest_tag -b $latest_tag || git checkout $latest_tag 
-        cp $NFI_PATH $FT_PATH
+        cp -f $NFI_PATH*.py $STRAT_PATH
 
         # Get tag to which the latest tag is pointing
         latest_tag_commit=$(git rev-list -n 1 tags/${latest_tag})
@@ -33,13 +26,9 @@ if [ "$latest_tag" != "$current_tag" ]; then
                 --data "chat_id=$TG_CHAT_ID" \
                 "https://api.telegram.org/bot${TG_TOKEN}/sendMessage"
 
-        sleep 120
 
-        cd $(dirname ${FT_PATH})
-        docker-compose down > /dev/null &&
-        docker-compose build --pull > /dev/null &&
-        docker-compose up -d --remove-orphans > /dev/null &&
-        docker system prune --volumes -af > /dev/null
+        cd $FT_PATH
+        docker stop $(docker ps -q) || true && pkill -f tmux || true && tmux new-session -d -s freqtrade && tmux send-keys "docker-compose -p ${FT_FOLDER@Q} run --rm ${FT_FOLDER@Q}" 'C-m' && tmux detach -s freqtrade
 
         curl -s --data "text=NFI reload has been completed!" \
                 --data "parse_mode=markdown" \
